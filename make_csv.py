@@ -1,30 +1,26 @@
 import pandas as pd
 import numpy as np
 
-#input: txt file downloaded from ncbi, after alignment view has been changed to dots for identity
-
-#when making the workflow, remember to remove intermediary files
-
 #########################
-# CREATE DESCRIPTION DF #
+# DESCRIPTION FUNCTIONS #
 #########################
 
-# Read file
-desc = pd.read_csv(snakemake.input[0], header = None, sep = " ")
+def create_description(desc_file):
+	desc = pd.read_csv(desc_file, header = None, sep = " ")
 
-# Combine columns
-desc[4] = desc[[0,1,2]].agg(' '.join, axis=1)
-desc = desc.drop(desc.iloc[:, 0:3],axis = 1)
+	# Combine description columns
+	desc[4] = desc[[0,1,2]].agg(' '.join, axis=1)
+	desc = desc.drop(desc.iloc[:, 0:3],axis = 1)
 
-# Set header names
-desc.columns = ["Query", "Description"]
+	desc.columns = ["Query", "Description"]
 
-assert desc["Query"].is_unique, "Description dataframe contains duplicate queries. Please remove these before continuing."
-#could maybe make some code that creates dataframe with unique values. Not sure if this will ever be a problem.
+	assert desc["Query"].is_unique, "Description dataframe contains duplicate queries. Please remove these before continuing."
+	
+	return desc
 
-#################
-# CREATE HEADER #
-#################
+####################
+# HEADER FUNCTIONS #
+####################
 
 def concatenate_reference_strings(header):
 	reference = ""
@@ -51,79 +47,88 @@ def create_header(headerfile):
 	header = concatenate_header_columns(header, reference_df)
 	return header.iloc[0]
 
-header = create_header(snakemake.input[2])
-
 #######################
-# CREATE ALIGNMENT DF #
+# ALIGNMENT FUNCTIONS #
 #######################
 
 def split_query_column_from_alignment(alignment):
 	return alignment[0].str.split(n = 1, pat = "  ", expand = True)
 
-def create_array_of_groups(query_alignment):
-	total_rows = len(query_alignment[0])
-	unique_rows = len(query_alignment[0].unique())
-	n_groups = int(total_rows/unique_rows)
-	list_of_groups = np.arange(1, n_groups + 1)
-	groups = np.repeat(list_of_groups, total_rows)
+def create_list_of_groups(query_alignment, desc):
+	query_alignment['next_query'] = query_alignment[0].shift(-1)
+	query_alignment['last_alignment_row'] = np.where( 
+	( ((query_alignment[0] == desc['Query'].iloc[-1]) & (query_alignment['next_query'] == desc['Query'].iloc[0])) | (query_alignment['next_query'].isna()) ),
+	True, False)
+
+	df_split_indexes = query_alignment.index[query_alignment['last_alignment_row']]
+	list_n_rows = np.diff(df_split_indexes)
+	list_n_rows = np.insert(list_n_rows, 0, df_split_indexes[0]+1)
+
+	list_of_groups = np.arange(len(df_split_indexes))
+	groups = np.repeat(list_of_groups, list_n_rows)
 	return groups
 
-def pivot_rows_to_columns(query_alignment, group_by_column):
-	pivoted_alignment = query_alignment.pivot(index = 0, columns = group_by_column, values = 1)
-	pivoted_alignment.reset_index(inplace = True)
-	return pivoted_alignment
+def split_alignment_dataframes_by_group(query_alignment):
+	return [d.iloc[:, 0:2].reset_index(drop = True) for _, d in query_alignment.groupby(['groups'])]
 
-def create_alignment_df(alignment_file, header):
-	alignment = pd.read_csv(alignment_file, header = None)
-	# THIS FUNCTION CURRENTLY ONLY WORKS WHEN THERE ARE NO DUPLICATES IN EITHER DESC OR ALIGN
-	assert len(desc) == len(alignment[0].unique()), f'Expected {len(desc)} alignments, got {len(alignment[0].unique())}'
-
-	query_alignment = split_query_column_from_alignment(alignment)
-	groups = create_array_of_groups(query_alignment)
-	query_alignment['groups'] = groups.tolist()
-	pivoted_alignment = pivot_rows_to_columns(query_alignment, 'groups')
-
-	final_alignment = pivoted_alignment[0]
+def split_columns(df_list, groups, header):
+	new_df_list = list()
 
 	reference_length = header.iloc[-1]
-	n_nucleotides = snakemake.params[0]
-	n_groups = groups.max()
+	n_nucleotides = 150
 
-	for i in range(1, n_groups+1):
-		df1 = pivoted_alignment[i].str.split(n = 1, pat = "  ", expand = True)
+	for i in range(groups.max() + 1):
+		df1 = df_list[i][1].str.split(n = 1, pat = "  ", expand = True)
+		if i == 0:
+			new_df_list.append(df_list[i][0])
+			new_df_list.append(df1[0])
 
-		start_pos = df1[0]
-		if i == 1: # if this is the first column: add start position to final dataframe
-			final_alignment = pd.concat([final_alignment, start_pos], axis = 1)
-
-		if i < n_groups	or reference_length % n_nucleotides == 0: # if not last column or last column contains max number of nucleotides
+		if i < groups.max()	or reference_length % n_nucleotides == 0: # if not last column or last column contains max number of nucleotides
 			n = n_nucleotides + 1
 		else: # number of nucleotides in last column varies
 			n = reference_length % n_nucleotides + 1
 
 		df2 = df1[1].str.split(pat = "", n = n, expand = True)
 
-		if i < n_groups:# if not last column: don't include end position
-			final_alignment = pd.concat([final_alignment, df2.iloc[:, 1:-1]], axis = 1)
+		if i < groups.max(): # if not last column: don't include end position
+			new_df_list.append(df2.iloc[:, 1:-1])
 		else: # include end position in final dataframe
-			final_alignment = pd.concat([final_alignment, df2.iloc[:, 1:]], axis = 1)
+			new_df_list.append(df2.iloc[:, 1:])
 
-	final_alignment.columns = header
+	return new_df_list
 
-	return final_alignment
 
-alignment = create_alignment_df(snakemake.input[1], header)
+def concatenate_alignment_columns(df_list):
+	return pd.concat(df_list, axis=1, join = 'inner')
+
 
 ####################
-# MERGE DATAFRAMES #
+# CREATE DATAFRAME #
 ####################
 
-df = desc.merge(alignment, how = 'inner')
+def create_final_dataframe(desc_file, alignment_file, header_file):
+	alignment = pd.read_csv(alignment_file, header = None)
+	header = create_header(header_file)
+	desc = create_description(desc_file)
 
-######################
-# CREATE OUTPUT FILE #
-######################
+	query_alignment = split_query_column_from_alignment(alignment)
+	groups = create_list_of_groups(query_alignment, desc)
+	query_alignment['groups'] = groups
+	df_list = split_alignment_dataframes_by_group(query_alignment)
+	df_list = split_columns(df_list, groups, header)
+	alignment = concatenate_alignment_columns(df_list)
+	alignment.columns = header
+	df = desc.merge(alignment, how = 'right')
+
+	return df
+
+df = create_final_dataframe(snakemake.input[0], snakemake.input[1], snakemake.input[2])
+
+#######################
+# CREATE OUTPUT FILES #
+#######################
 
 df.to_csv(snakemake.output[0])
 
-
+df_nucleotide_changes = df.loc[(df.iloc[:, 3:-1] != ".").any(axis=1)]
+df_nucleotide_changes.to_csv(snakemake.output[1])
