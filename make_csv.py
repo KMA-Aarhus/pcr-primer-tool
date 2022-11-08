@@ -26,7 +26,7 @@ def concatenate_reference_strings(header):
 	reference = ""
 	for row in range(len(header)):
 		reference += header.iloc[row,2]
-	return reference
+	return reference.upper()
 
 def create_dataframe_from_reference_string(reference):
 	df = pd.DataFrame()
@@ -52,7 +52,7 @@ def create_header(headerfile):
 #######################
 
 def split_query_column_from_alignment(alignment):
-	return alignment[0].str.split(n = 1, pat = "  ", expand = True)
+	return alignment[0].str.split(n = 1, pat = " +", expand = True)
 
 def create_list_of_groups(query_alignment, desc):
 	query_alignment['next_query'] = query_alignment[0].shift(-1)
@@ -75,20 +75,29 @@ def split_columns(df_list, groups, header):
 	new_df_list = list()
 
 	reference_length = header.iloc[-1]
-	n_nucleotides = 150
+	n_nucleotides = 150 #change to snakemake params!!
 
 	for i in range(groups.max() + 1):
+
+		# extract start position column
 		df1 = df_list[i][1].str.split(n = 1, pat = "  ", expand = True)
-		if i == 0:
+
+		if i == 0: # if first dataframe, append query id and start position
 			new_df_list.append(df_list[i][0])
 			new_df_list.append(df1[0])
+
+		# remove extra whitespaces due to differences in start position str length
+		col = df1[0].str.len()
+		df1['new_col'] = col.max() - col
+		x = df1.apply(lambda x: x[1][x["new_col"]:], 1)
 
 		if i < groups.max()	or reference_length % n_nucleotides == 0: # if not last column or last column contains max number of nucleotides
 			n = n_nucleotides + 1
 		else: # number of nucleotides in last column varies
 			n = reference_length % n_nucleotides + 1
 
-		df2 = df1[1].str.split(pat = "", n = n, expand = True)
+		# split remaining columns
+		df2 = x.str.split(pat = "", n = n, expand = True)
 
 		if i < groups.max(): # if not last column: don't include end position
 			new_df_list.append(df2.iloc[:, 1:-1])
