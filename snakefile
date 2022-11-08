@@ -4,7 +4,7 @@ list_of_files = (glob.glob("input/*"))
 list_of_rids = [file.partition("/")[2].partition("-")[0] for file in list_of_files]
 
 rule all:
-	input: expand(["output/{rid}.csv"], rid = list_of_rids)
+	input: expand(["output/{rid}_all_alignments.csv"], rid = list_of_rids)
 
 rule separate_ncbi_file:
 	input:
@@ -16,7 +16,7 @@ rule separate_ncbi_file:
 	shell: """
 
 	# Make description file with first 3 words of description + accession no
-	awk '/%/ {{print $1,$2,$3, $NF}}' {input} > {output.description}
+	awk '/%/ {{print $1,$2,$3, $(NF-2), $NF}}' {input} > {output.description}
 
 	# Make alignment file without reference
 	# Requires two dots in the alignment column. Requires alignment column to be the 3rd column
@@ -28,7 +28,7 @@ rule separate_ncbi_file:
 
 	"""
 
-rule create_csv_file:
+rule create_csv_files:
 	input:
 		description = "output/{rid}_description.txt",
 		alignment = "output/{rid}_alignment.txt",
@@ -36,6 +36,7 @@ rule create_csv_file:
 	params:
 		max_number_of_nucleotides = 150
 	output:
-		"output/{rid}.csv"
+		"output/{rid}_all_alignments.csv",
+		"output/{rid}_alignments_with_nucleotide_changes.csv"
 	script:
 		"make_csv.py"

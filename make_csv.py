@@ -9,10 +9,10 @@ def create_description(desc_file):
 	desc = pd.read_csv(desc_file, header = None, sep = " ")
 
 	# Combine description columns
-	desc[4] = desc[[0,1,2]].agg(' '.join, axis=1)
-	desc = desc.drop(desc.iloc[:, 0:3],axis = 1)
+	desc[0] = desc[[0,1,2]].agg(' '.join, axis=1)
+	desc = desc.drop(desc.iloc[:, 1:3],axis = 1)
 
-	desc.columns = ["Query", "Description"]
+	desc.columns = ["Description", "Percent_Identity", "Query"]
 
 	assert desc["Query"].is_unique, "Description dataframe contains duplicate queries. Please remove these before continuing."
 	
@@ -127,7 +127,7 @@ def create_final_dataframe(desc_file, alignment_file, header_file):
 	df_list = split_columns(df_list, groups, header)
 	alignment = concatenate_alignment_columns(df_list)
 	alignment.columns = header
-	df = desc.merge(alignment, how = 'right')
+	df = alignment.merge(desc, how = 'left')
 
 	return df
 
@@ -139,5 +139,5 @@ df = create_final_dataframe(snakemake.input[0], snakemake.input[1], snakemake.in
 
 df.to_csv(snakemake.output[0])
 
-df_nucleotide_changes = df.loc[(df.iloc[:, 3:-1] != ".").any(axis=1)]
+df_nucleotide_changes = df[df["Percent_Identity"] != 100]
 df_nucleotide_changes.to_csv(snakemake.output[1])
