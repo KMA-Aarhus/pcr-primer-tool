@@ -141,3 +141,6 @@ df.to_csv(snakemake.output[0])
 
 df_nucleotide_changes = df[df["Percent_Identity"] != 100]
 df_nucleotide_changes.to_csv(snakemake.output[1])
+
+df_count_nucleotide_changes = df.iloc[:,3:-3].apply(pd.value_counts).fillna(0).filter(regex = '[a-zA-Z]', axis=0).convert_dtypes()
+df_count_nucleotide_changes.to_csv(snakemake.output[2])

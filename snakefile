@@ -37,6 +37,7 @@ rule create_csv_files:
 		max_number_of_nucleotides = 150
 	output:
 		"output/{rid}_all_alignments.csv",
-		"output/{rid}_alignments_with_nucleotide_changes.csv"
+		"output/{rid}_alignments_with_nucleotide_changes.csv",
+		"output/{rid}_nucleotide_changes_table.csv"
 	script:
 		"make_csv.py"
