@@ -15,12 +15,11 @@ rule separate_ncbi_file:
 		alignment_header = temp("output/{rid}_alignment_header.txt")
 	shell: """
 
-	# Make description file with first 3 words of description + accession no
-	awk '/%/ {{print $1,$2,$3, $(NF-2), $NF}}' {input} > {output.description}
+	# Make description file with full description, percent identity and accession no
+	awk '/%/ {{cols="\t"$(NF-2)"\t"$NF; NF-=11; print $0 cols}}' {input} > {output.description}
 
 	# Make alignment file without reference
 	# Requires four dots in the alignment column. Requires alignment column to be the 3rd column
-
 	awk 'index($3, "....")' {input} > {output.alignment}
 
 	# Make header file for alignment

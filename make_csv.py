@@ -6,11 +6,11 @@ import numpy as np
 #########################
 
 def create_description(desc_file):
-	desc = pd.read_csv(desc_file, header = None, sep = " ")
-
-	# Combine description columns
-	desc[0] = desc[[0,1,2]].agg(' '.join, axis=1)
-	desc = desc.drop(desc.iloc[:, 1:3],axis = 1)
+	"""
+	Takes a description txt file with description, percent nucleotide identity and query id columns.
+	Requires query id's to be unique. Not handled; non-unique values in description expected to never happen.
+	"""
+	desc = pd.read_csv(desc_file, header = None, sep = "\t")
 
 	desc.columns = ["Description", "Percent_Identity", "Query"]
 
@@ -23,23 +23,34 @@ def create_description(desc_file):
 ####################
 
 def concatenate_reference_strings(header):
+	"""Concatenates the sub-genomes into the complete query genome"""
 	reference = ""
 	for row in range(len(header)):
 		reference += header.iloc[row,2]
 	return reference.upper()
 
 def create_dataframe_from_reference_string(reference):
+	"""Converts the query genome to a one-row df with a column for each nucleotide position"""
 	df = pd.DataFrame()
 	df[0] = [reference]
 	df = df[0].str.split(pat = "", n = len(reference), expand = True)
 	return df
 
 def concatenate_header_columns(header, reference_df):
+	"""
+	Takes the original header df and the newly created reference df. 
+	Adds end position column to reference df.
+	Combines 'Query' and start position from header file with reference columns and end position from reference df.
+	"""
 	reference_df.insert(len(reference_df.columns), len(reference_df.columns), len(reference_df.columns)-1)
 	header = pd.concat([header.iloc[0:1, 0:2], reference_df.iloc[:, 1:]], axis = 1)
 	return header
 
 def create_header(headerfile):
+	"""
+	Takes a header txt file, which contains a row for each subdivision of the query genome.
+	Creates column names for alignment dataframe.
+	"""
 	header = pd.read_csv(headerfile, header = None)
 	header = header[0].str.split(expand = True)
 	reference = concatenate_reference_strings(header)
@@ -52,9 +63,18 @@ def create_header(headerfile):
 #######################
 
 def split_query_column_from_alignment(alignment):
-	return alignment[0].str.split(n = 1, pat = " +", expand = True)
+	"""Extracts Query id column from remaining alignment dataframe"""
+	return alignment[0].str.split(n = 1, expand = True)
 
 def create_list_of_groups(query_alignment, desc):
+	"""
+	Creates a list assigning each row in the alignment dataframe to a group based on which subgenome the row contains.
+	This is done by first locating cases in the alignment dataframe where a group should end:
+	1. The current Query id is the last in the description dataframe and the next Query id is the first, i.e. where the query id's reset.
+	2. The next Query id is missing, i.e. it is the last row in the dataframe.
+	Then getting the number of rows belonging to each group. 
+	The number of rows in each group can vary, because some alignments are so short, they are not subdivided as many times as the original query genome.
+	"""
 	query_alignment['next_query'] = query_alignment[0].shift(-1)
 	query_alignment['last_alignment_row'] = np.where( 
 	( ((query_alignment[0] == desc['Query'].iloc[-1]) & (query_alignment['next_query'] == desc['Query'].iloc[0])) | (query_alignment['next_query'].isna()) ),
@@ -69,13 +89,14 @@ def create_list_of_groups(query_alignment, desc):
 	return groups
 
 def split_alignment_dataframes_by_group(query_alignment):
+	"""Splits the alignment dataframe by group into a list of dataframes. Removes columns used for grouping."""
 	return [d.iloc[:, 0:2].reset_index(drop = True) for _, d in query_alignment.groupby(['groups'])]
 
 def split_columns(df_list, groups, header):
 	new_df_list = list()
 
 	reference_length = header.iloc[-1]
-	n_nucleotides = 150 #change to snakemake params!!
+	n_nucleotides = snakemake.params[0]
 
 	for i in range(groups.max() + 1):
 
