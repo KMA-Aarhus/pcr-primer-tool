@@ -19,9 +19,9 @@ rule separate_ncbi_file:
 	awk '/%/ {{print $1,$2,$3, $(NF-2), $NF}}' {input} > {output.description}
 
 	# Make alignment file without reference
-	# Requires two dots in the alignment column. Requires alignment column to be the 3rd column
+	# Requires four dots in the alignment column. Requires alignment column to be the 3rd column
 
-	awk 'index($3, "..")' {input} > {output.alignment}
+	awk 'index($3, "....")' {input} > {output.alignment}
 
 	# Make header file for alignment
 	awk '{{ if($1 == "Query") print}}' {input} > {output.alignment_header}
