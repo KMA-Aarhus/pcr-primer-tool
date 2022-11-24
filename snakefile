@@ -4,7 +4,38 @@ list_of_files = (glob.glob("input/*"))
 list_of_rids = [file.partition("/")[2].partition("-")[0] for file in list_of_files]
 
 rule all:
-	input: expand(["output/{rid}_all_alignments.csv"], rid = list_of_rids)
+	input: expand(["output/{rid}_all_alignments.csv", "database.fasta", "alignment.txt"], rid = list_of_rids)
+
+
+rule download_database:
+	output: "database.fasta"
+	params:
+		query = "Monkeypox"
+	script:
+		"database_download.py"
+
+rule blast:
+	input: 
+		database = "database.fasta"
+		query = "query.txt"
+	params:
+		database_title = "database"
+	output:
+		alignment_file = "alignment.txt"
+		description_file = "description.txt"
+	shell: """
+
+	# Prepare database for BLAST
+	makeblastdb -in {input.database} -dbtype nucl -parse_seqids -out {params.database_title}
+
+	# BLAST create alignment file
+	blastn -query {input.query} -db {params.database_title} -outfmt 3 -line_length 1000 -max_target_seqs 10000 -out {output.alignment_file} 
+
+	#BLAST description
+	blastn -query {input.query} -db {params.database_title} -outfmt "6 sacc stitle pident" -max_target_seqs 1000 -out {output.description_file}
+
+	"""
+
 
 rule separate_ncbi_file:
 	input:
