@@ -7,7 +7,7 @@ with open('ncbi_mail.txt') as f:
 
 Entrez.email = mail  # Always tell NCBI who you are.
 
-search_handle = Entrez.esearch(db="nucleotide", term=snakemake.params[0], usehistory="y", idtype="acc", datetype="pdat", reldate=365)
+search_handle = Entrez.esearch(db="nucleotide", term=snakemake.params[0], usehistory="y", idtype="acc", datetype="pdat", reldate=30)  
 
 search_results = Entrez.read(search_handle)
 search_handle.close()
