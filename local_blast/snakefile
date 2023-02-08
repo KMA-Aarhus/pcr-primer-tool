@@ -1,0 +1,69 @@
+# snakemake --profile configs/profile
+
+rule all:
+	input: ["output/all_alignments.csv"]
+
+
+rule download_database:
+	output: "database/db.fasta"
+	conda: "configs/envs/ncbi.yaml"
+	script: "scripts/database_download.py"
+
+rule blast:
+	input: 
+		database = "database/db.fasta",
+		query_seq = "input/query.txt"
+	output:
+		alignment_file = temp("output/alignment.txt"),
+		description_file = temp("output/description.tsv")
+	params:
+		database_title = "db"
+	conda: "configs/envs/ncbi.yaml"
+	shell: """
+
+	# Prepare database for BLAST
+	makeblastdb -in {input.database} -dbtype nucl -parse_seqids -out {params.database_title}
+
+	# Use blastn -help for list of BLAST output formats and format specifier options
+
+	# BLAST alignment file
+	blastn -query {input.query_seq} -db {params.database_title} -outfmt 3 -line_length 1000 -max_target_seqs 10000 -out {output.alignment_file} 
+
+	# BLAST description. Creates tsv with 3 columns: Subject accession.version, Subject Title & Percentage of identical matches
+	blastn -query {input.query_seq} -db {params.database_title} -outfmt "6 saccver stitle pident" -max_target_seqs 10000 -out {output.description_file}
+
+	"""
+
+
+rule separate_ncbi_file:
+	input:
+		"output/alignment.txt"
+	output:
+		alignment = temp("output/alignments.txt"),
+		alignment_header = temp("output/alignment_header.txt")
+	shell: """
+
+	# Make alignment file without reference
+	# Requires alignment column to be the 3rd column. Requires four dots in the alignment column. 
+	awk 'index($3, "....")' {input} > {output.alignment}
+
+	# Make header file for alignment
+	awk 'index($1, "Query_")' {input} > {output.alignment_header}
+
+	"""
+
+rule create_csv_files:
+	input:
+		description = "output/description.tsv",
+		alignment = "output/alignments.txt",
+		alignment_header = "output/alignment_header.txt"
+	output:
+		"output/all_alignments.csv",
+		"output/alignments_with_nucleotide_changes.csv",
+		"output/nucleotide_changes_table.csv"
+	script:
+		"scripts/make_csv.py"
+
+
+onsuccess:
+	shell('rm db*')

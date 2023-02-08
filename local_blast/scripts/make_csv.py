@@ -14,7 +14,9 @@ def create_description(desc_file):
 
 	desc.columns = ["Query_1", "Description", "Percent_Identity"]
 
-	assert desc["Query_1"].is_unique, "Description dataframe contains duplicate queries. Please remove these before continuing."
+	desc = desc.drop_duplicates(subset =['Query_1'])
+
+	#assert desc["Query_1"].is_unique, "Description dataframe contains duplicate queries. Please remove these before continuing."
 	
 	return desc
 
