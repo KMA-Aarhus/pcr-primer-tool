@@ -3,7 +3,7 @@ import time
 startTime = time.time()
 
 mail = input("Your mail address (you will be notified by NCBI in case of request-issues): ")
-term = input("Search term (in case of multiple search queries, separate terms by 'or'): ")
+term = input("Search term: \nIn case of hit across multiple kingdoms for example phages, specify organism. Example: 'Escherichia coli AND (bacteria[filter])'. With multiple search queries, separate terms by 'or': ")
 search_period = input("Search period in number of days from now (1 month = 30, 1 year = 365): ")
 
 Entrez.email = mail  # Always tell NCBI who you are.
@@ -18,7 +18,7 @@ webenv = search_results["WebEnv"]
 query_key = search_results["QueryKey"]
 
 print("Total number of records:", count)
-
+#print(search_results)
 answer = input(f"Do you want to continue with the download for search term '{term}' with {count} hits (Y/n)? ").lower()
 
 if answer == "y" or answer == "yes":
