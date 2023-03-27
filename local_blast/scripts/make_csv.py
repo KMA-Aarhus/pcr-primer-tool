@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import os
 
 ##################
 # DESCRIPTION DF #
@@ -15,8 +16,6 @@ def create_description(desc_file):
 	desc.columns = ["Query_1", "Description", "Percent_Identity"]
 
 	desc = desc.drop_duplicates(subset =['Query_1'])
-
-	#assert desc["Query_1"].is_unique, "Description dataframe contains duplicate queries. Please remove these before continuing."
 	
 	return desc
 
@@ -49,6 +48,7 @@ def create_header(header_file):
 
 def create_alignment_df(alignment_file, header_file):
 	alignment = pd.read_csv(alignment_file, header = None)
+
 	header, query_length = create_header(header_file)
 
 	# Extract Query id column
@@ -73,25 +73,40 @@ def create_alignment_df(alignment_file, header_file):
 
 	return alignment
 
+##########################################
+# ERROR HANDLING IN CASE OF EMPTY SEARCH #
+##########################################
+
+def write_error_message_to_file(output_file, error_message):
+	with open(output_file, 'w') as f:
+		f.write(error_message)
+
+if os.path.getsize(snakemake.input[0]) == 0:
+	message = "Input files are empty. This means no hits were found in the BLAST search. Try again with a different database."
+
+	for i in range(3):
+		write_error_message_to_file(snakemake.output[i], message)
+
 ##########################
 # CREATE FINAL DATAFRAME #
 ##########################
 
-desc = create_description(snakemake.input[0])
-alignment = create_alignment_df(snakemake.input[1], snakemake.input[2])
-df = alignment.merge(desc, how = 'left')
+else:
+	desc = create_description(snakemake.input[0])
+	alignment = create_alignment_df(snakemake.input[1], snakemake.input[2])
+	df = alignment.merge(desc, how = 'left')
 
 #######################
 # CREATE OUTPUT FILES #
 #######################
 
 # Table containing all alignments
-df.to_csv(snakemake.output[0])
+	df.to_csv(snakemake.output[0])
 
 # Table containing aligments with nucleotide changes
-df_nucleotide_changes = df[df["Percent_Identity"] != 100]
-df_nucleotide_changes.to_csv(snakemake.output[1])
+	df_nucleotide_changes = df[df["Percent_Identity"] != 100]
+	df_nucleotide_changes.to_csv(snakemake.output[1])
 
 # Table with counts of nucleotide changes
-df_count_nucleotide_changes = df.iloc[:,3:-3].apply(pd.value_counts).fillna(0).filter(regex = '[a-zA-Z]', axis=0).convert_dtypes()
-df_count_nucleotide_changes.to_csv(snakemake.output[2])
+	df_count_nucleotide_changes = df.iloc[:,3:-3].apply(pd.value_counts).fillna(0).filter(regex = '[a-zA-Z]', axis=0).convert_dtypes()
+	df_count_nucleotide_changes.to_csv(snakemake.output[2])

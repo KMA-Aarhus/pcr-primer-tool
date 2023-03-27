@@ -17,7 +17,7 @@ To run using online_blast, follow the guide here:
 [online_blast](https://github.com/KMA-Aarhus/pcr-primer-tool/tree/main/online_blast) to generate the required files. Then navigate to online_blast and run the workflow using the following commands:
 ```
 cd online_blast
-snakemake --profile configs/cluster_profile
+snakemake --profile configs/local_profile
 ```
 Note that the first time the tool is run, a number of packages will be installed. For this, we recommend using mamba. 
 
@@ -27,7 +27,7 @@ Then navigate to local_blast and run the workflow using the following commands:
 
 ```
 cd local_blast
-snakemake --profile configs/cluster_profile
+snakemake --profile configs/local_profile
 ```
 Note that the first time the tool is run, a number of packages will be installed. For this, we recommend using mamba. 
 
@@ -50,3 +50,12 @@ When the tool is done, you can find 3 files per sequence in the "output" directo
 - nucleotide_changes_table.csv: Summarises up all positions in the query sequence including which and how many changes have been found in the database.
 - nucleotide_changes_table.csv: Summarises all positions in the query sequence as well as all BLAST hits containing changes.
 - alignments_with_nucleotide_changes.csv: Summarises all positions in the query sequence plus all BLAST hits.
+
+#### Cluster configuration
+This tool includes configs for running the workflow on genomeDK using Slurm.  
+However, the database download rule does not work with Slurm, because the rule requires manual user input.     
+If the required database is already downloaded, the remaining workflow jobs can be submitted to the cluster queue by specifying the cluster profile:   
+
+```
+snakemake --profile configs/cluster_profile
+```
