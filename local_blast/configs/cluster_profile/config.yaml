@@ -1,0 +1,19 @@
+cores: 8
+
+rerun-incomplete: true
+show-failed-logs: true
+drmaa: "
+    --mem-per-cpu={cluster.mem}
+    --cpus-per-task={cluster.cpus-per-task} 
+    --time={cluster.time} 
+    --account={cluster.account}
+    --error={cluster.error} 
+    --output={cluster.output}
+"
+
+cluster-config: "configs/cluster.yaml" 
+
+jobname: "{name}.{jobid}.snakejob.sh" 
+use-conda: true
+conda-frontend: mamba
+use-singularity: true

@@ -1,7 +1,11 @@
-# snakemake --profile configs/profile
+import pandas as pd
+
+
+df = pd.read_csv("input/query.txt", header = None, names = ["Query"])
+
 
 rule all:
-	input: ["output/all_alignments.csv"]
+	input: expand(["output/all_alignments_{query_id}.csv"], query_id = list(df.index.values))
 
 
 rule download_database:
@@ -9,21 +13,40 @@ rule download_database:
 	conda: "configs/envs/ncbi.yaml"
 	script: "scripts/database_download.py"
 
-rule blast:
-	input: 
-		database = "database/db.fasta",
-		query_seq = "input/query.txt"
+
+rule prepare_database:
+	input:
+		database = "database/db.fasta"
 	output:
-		alignment_file = temp("output/alignment.txt"),
-		description_file = temp("output/description.tsv")
+		temp(touch("prepare_for_blast.done"))
 	params:
 		database_title = "db"
 	conda: "configs/envs/ncbi.yaml"
 	shell: """
-
 	# Prepare database for BLAST
 	makeblastdb -in {input.database} -dbtype nucl -parse_seqids -out {params.database_title}
+	"""
 
+
+rule create_query_files:
+	params:
+		seq = lambda wildcards: df.loc[int(wildcards.query_id)].values[0]
+	output:
+		"input/query_{query_id}.txt"
+	shell: """ echo {params.seq} > {output} """
+
+
+rule blast:
+	input: 
+		query_seq = "input/query_{query_id}.txt",
+		flag = "prepare_for_blast.done"
+	output:
+		alignment_file = temp("output/alignment_{query_id}.txt"),
+		description_file = temp("output/description_{query_id}.tsv")
+	params:
+		database_title = "db"
+	conda: "configs/envs/ncbi.yaml"
+	shell: """
 	# Use blastn -help for list of BLAST output formats and format specifier options
 
 	# BLAST alignment file
@@ -37,10 +60,10 @@ rule blast:
 
 rule separate_ncbi_file:
 	input:
-		"output/alignment.txt"
+		"output/alignment_{query_id}.txt"
 	output:
-		alignment = temp("output/alignments.txt"),
-		alignment_header = temp("output/alignment_header.txt")
+		alignment = temp("output/alignments_{query_id}.txt"),
+		alignment_header = temp("output/alignmentheader_{query_id}.txt")
 	shell: """
 
 	# Make alignment file without reference
@@ -52,18 +75,19 @@ rule separate_ncbi_file:
 
 	"""
 
+
 rule create_csv_files:
 	input:
-		description = "output/description.tsv",
-		alignment = "output/alignments.txt",
-		alignment_header = "output/alignment_header.txt"
+		description = "output/description_{query_id}.tsv",
+		alignment = "output/alignments_{query_id}.txt",
+		alignment_header = "output/alignmentheader_{query_id}.txt"
 	output:
-		"output/all_alignments.csv",
-		"output/alignments_with_nucleotide_changes.csv",
-		"output/nucleotide_changes_table.csv"
+		"output/all_alignments_{query_id}.csv",
+		"output/alignments_with_nucleotide_changes_{query_id}.csv",
+		"output/nucleotide_changes_table_{query_id}.csv"
 	script:
 		"scripts/make_csv.py"
 
 
 onsuccess:
-	shell('rm db*')
+	shell('rm db* input/query_*')
