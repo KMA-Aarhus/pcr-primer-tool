@@ -90,4 +90,4 @@ rule create_csv_files:
 
 
 onsuccess:
-	shell('rm db* input/query_*')
+	shell('rm -f db* input/query_*')
