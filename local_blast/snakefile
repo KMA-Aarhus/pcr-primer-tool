@@ -50,10 +50,10 @@ rule blast:
 	# Use blastn -help for list of BLAST output formats and format specifier options
 
 	# BLAST alignment file
-	blastn -query {input.query_seq} -db {params.database_title} -outfmt 3 -line_length 1000 -max_target_seqs 10000 -out {output.alignment_file} 
+	blastn -task blastn-short -query {input.query_seq} -db {params.database_title} -outfmt 3 -line_length 1000 -max_target_seqs 10000 -out {output.alignment_file} 
 
 	# BLAST description. Creates tsv with 3 columns: Subject accession.version, Subject Title & Percentage of identical matches
-	blastn -query {input.query_seq} -db {params.database_title} -outfmt "6 saccver stitle pident" -max_target_seqs 10000 -out {output.description_file}
+	blastn -task blastn-short -query {input.query_seq} -db {params.database_title} -outfmt "6 saccver stitle pident" -max_target_seqs 10000 -out {output.description_file}
 
 	"""
 
